@@ -530,38 +530,28 @@ function dm_manage_page() {
 }
 
 function domain_mapping_siteurl( $setting ) {
-	global $wpdb, $current_site;
+	global $wpdb, $current_blog;
 
 	// To reduce the number of database queries, save the results the first time we encounter each blog ID.
 	static $return_url = array();
 
-	$option_key = 'home';
-
-	if( 'pre_option_siteurl' == current_filter() )
-		$option_key = 'siteurl';
-
 	$wpdb->dmtable = $wpdb->base_prefix . 'domain_mapping';
 
-	if ( ! isset( $return_url[ $wpdb->blogid ] ) || ! isset( $return_url[ $wpdb->blogid ][ $option_key ] ) ) {
-		if( ! isset( $return_url[ $wpdb->blogid ] ) )
-			$return_url[ $wpdb->blogid ] = array();
-
+	if ( !isset( $return_url[ $wpdb->blogid ] ) ) {
 		$s = $wpdb->suppress_errors();
 
 		if ( get_site_option( 'dm_no_primary_domain' ) == 1 ) {
 			$domain = $wpdb->get_var( "SELECT domain FROM {$wpdb->dmtable} WHERE blog_id = '{$wpdb->blogid}' AND domain = '" . $wpdb->escape( $_SERVER[ 'HTTP_HOST' ] ) . "' LIMIT 1" );
-
 			if ( null == $domain ) {
-				$return_url[ $wpdb->blogid ][ $option_key ] = untrailingslashit( get_original_url( $option_key ) );
-				return $return_url[ $wpdb->blogid ][ $option_key ];
+				$return_url[ $wpdb->blogid ] = untrailingslashit( get_original_url( "siteurl" ) );
+				return $return_url[ $wpdb->blogid ];
 			}
 		} else {
 			// get primary domain, if we don't have one then return original url.
 			$domain = $wpdb->get_var( "SELECT domain FROM {$wpdb->dmtable} WHERE blog_id = '{$wpdb->blogid}' AND active = 1 LIMIT 1" );
-
 			if ( null == $domain ) {
-				$return_url[ $wpdb->blogid ][ $option_key ] = untrailingslashit( get_original_url( $option_key ) );
-				return $return_url[ $wpdb->blogid ][ $option_key ];
+				$return_url[ $wpdb->blogid ] = untrailingslashit( get_original_url( "siteurl" ) );
+				return $return_url[ $wpdb->blogid ];
 			}
 		}
 
@@ -570,18 +560,13 @@ function domain_mapping_siteurl( $setting ) {
 		$protocol = is_ssl() ? 'https://' : 'http://'; 
 
 		if ( $domain ) {
-			if( 'siteurl' == $option_key )
-				$return_url[ $wpdb->blogid ][ $option_key ] = untrailingslashit( $protocol . $domain . $current_site->path );
-			else 
-				$return_url[ $wpdb->blogid ][ $option_key ] = untrailingslashit( $protocol . $domain );
-
-			$setting = $return_url[ $wpdb->blogid ][ $option_key ];
+			$return_url[ $wpdb->blogid ] = untrailingslashit( $protocol . $domain  );
+			$setting = $return_url[ $wpdb->blogid ];
 		} else {
-			$return_url[ $wpdb->blogid ][ $option_key ] = false;
+			$return_url[ $wpdb->blogid ] = false;
 		}
-	}
-	elseif ( $return_url[ $wpdb->blogid ][ $option_key ] !== FALSE ) {
-		$setting = $return_url[ $wpdb->blogid ][ $option_key ];
+	} elseif ( $return_url[ $wpdb->blogid ] !== FALSE) {
+		$setting = $return_url[ $wpdb->blogid ];
 	}
 
 	return $setting;
@@ -591,38 +576,35 @@ function domain_mapping_siteurl( $setting ) {
 function get_original_url( $url, $blog_id = 0 ) {
 	global $wpdb;
 
-	if ( $blog_id != 0 )
-		$id = $blog_id;
-	else
+	if ( $blog_id != 0 ) {
+		$id = $blog_id; 
+	} else {
 		$id = $wpdb->blogid;
-
-	if( 'home' != $url && 'siteurl' != $url )
-		$url = 'siteurl';
+	}
 
 	static $orig_urls = array();
-	if ( ! isset( $orig_urls[ $id ] ) || ! isset( $orig_urls[ $id ][ $url ] ) ) {
+	if ( ! isset( $orig_urls[ $id ] ) ) {
 		if ( defined( 'DOMAIN_MAPPING' ) ) 
-			remove_filter( 'pre_option_' . $url, 'domain_mapping_siteurl' );
-
-		if ( $blog_id == 0 )
+			remove_filter( 'pre_option_' . $url, 'domain_mapping_' . $url );
+		if ( $blog_id == 0 ) {
 			$orig_url = get_option( $url );
-		else
+		} else {
 			$orig_url = get_blog_option( $blog_id, $url );
 
-		if ( is_ssl() )
+		if ( is_ssl() ) {
 			$orig_url = str_replace( "http://", "https://", $orig_url );
-		else
+		} else {
 			$orig_url = str_replace( "https://", "http://", $orig_url );
-
-		if( ! isset( $orig_urls[ $id ] ) )
-			$orig_urls[ $id ] = array();
-
-		$orig_urls[ $id ][ $url ] = $orig_url;
-
+		}
+		if ( $blog_id == 0 ) {
+			$orig_urls[ $wpdb->blogid ] = $orig_url;
+		} else {
+			$orig_urls[ $blog_id ] = $orig_url;
+		}
 		if ( defined( 'DOMAIN_MAPPING' ) ) 
-			add_filter( 'pre_option_' . $url, 'domain_mapping_siteurl' );
+			add_filter( 'pre_option_' . $url, 'domain_mapping_' . $url );
 	}
-	return $orig_urls[ $id ][ $url ];
+	return $orig_urls[ $id ];
 }
 
 function domain_mapping_adminurl( $url, $path, $blog_id = 0 ) {
